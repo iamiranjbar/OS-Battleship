@@ -16,8 +16,8 @@
 
 struct client{
     char* username;
-    int ip[1024];
-    int port[1024];
+    char* ip;
+    int port;
     char* rival;
 };
 
@@ -101,7 +101,7 @@ int main(int argc , char *argv[]){
             for (i = 0; i < max_clients; i++){   
                 if( client_socket[i] == 0 ){   
                     client_socket[i] = new_socket;   
-                    printf("Adding to list of sockets as %d\ n" , i);   
+                    printf("Adding to list of sockets as %d \n" , i);   
                         
                     break;   
                 }   
