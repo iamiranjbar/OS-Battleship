@@ -11,12 +11,14 @@
 #include <time.h> 
 #include <math.h>
 
-#define SERVER_PORT 8888 
+#define SERVER_PORT 8888
 #define USERNAME_MAX 10
 #define WELCOME_MSG_SIZE 31
 #define IP "127.0.0.1"
 #define SERVER_MSG_SIZE 40
 #define PORT_LENGTH 5
+#define TRUE 1
+#define FALSE 0
 
 char* toArray(int number){
     int n = log10(number) + 1;
@@ -58,6 +60,11 @@ void make_msg_ready(char* username, int port, char* msg){
         msg = strcat(msg," ");
         port_str = toArray(port);
         msg = strcat(msg, port_str);
+        msg = strcat(msg, " ");
+}
+
+int rival_found(){
+    return FALSE;
 }
 
 void connect_to_server(int* listening_port){
@@ -89,16 +96,16 @@ void connect_to_server(int* listening_port){
             perror("recv");
             exit(1);
         }
-
+        // while(!rival_found());
         close(sockfd);
 }
 
 int main(int argc, char *argv[]){
 	int listening_port;
-
+    // while(true){
     //if (server_is_up()){
         connect_to_server(&listening_port);
     //}
-
+    // }
 	return 0;
 }
