@@ -72,7 +72,7 @@ void make_msg_ready(char* username, int port, char* msg){
 
 void parse_request(char* incoming_msg, struct rival* riv){
     int space_count = 0, prev_index;
-    char temp[5];
+    char temp[6];
     for (int i = 0; i < strlen(incoming_msg); i++){
         if (incoming_msg[i] == ' '){
             space_count++;
@@ -103,11 +103,10 @@ void wait_for_rival(int socketfd, struct rival* riv){
         exit(1);
     }
     buf[numbytes] = NULLPTR;
-    if(!strcmp(buf, "You're Paired!")){
+    if(strcmp(buf, "You're Paired!") == 0){
         return;
-    }else{
-        parse_request(buf, riv);
     }
+    parse_request(buf, riv);
 }
 
 void connect_to_server(int* listening_port, struct rival* riv){
@@ -145,10 +144,10 @@ void connect_to_server(int* listening_port, struct rival* riv){
 
 int main(int argc, char *argv[]){
 	int listening_port;
-    struct rival* riv;
+    struct rival riv;
     // while(true){
     //if (server_is_up()){
-        connect_to_server(&listening_port , riv);
+        connect_to_server(&listening_port , &riv);
     //}
     // }
 	return 0;

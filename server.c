@@ -44,7 +44,7 @@ void clean_struct(struct client* new_client){
 
 void parse_request(char* incoming_msg, struct client* new_client){
     int space_count = 0, prev_index;
-    char temp[5];
+    char temp[6];
     for (int i = 0; i < strlen(incoming_msg); i++){
         if (incoming_msg[i] == ' '){
             space_count++;
