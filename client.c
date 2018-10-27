@@ -11,7 +11,7 @@
 #include <time.h> 
 #include <math.h>
 
-#define SERVER_PORT 8888
+#define SERVER_PORT 7275
 #define USERNAME_MAX 10
 #define WELCOME_MSG_SIZE 31
 #define IP "127.0.0.1"

@@ -8,13 +8,15 @@
 #include <sys/socket.h>  
 #include <netinet/in.h>  
 #include <sys/time.h> 
-     
+#include <math.h>
+
 #define TRUE   1  
 #define FALSE  0  
-#define LISTEN_PORT 8888  
+#define LISTEN_PORT 7275 
 #define MAX_PENDING 5
 #define MAX_CLIENTS 30
 #define NULLPTR '\0'
+#define PORT_LENGTH 5
 
 struct client{
     char username[10];
@@ -22,6 +24,16 @@ struct client{
     int port;
     char rival[10];
 };
+
+char* toArray(int number){
+    int n = log10(number) + 1;
+    char* numberArray = malloc((n+1) * sizeof(char));
+    for (int i = n-1; i >= 0; i--){
+        numberArray[i] = (number % 10) + '0';
+        number /= 10;
+    }
+    return numberArray;
+}
 
 void clean_struct(struct client* new_client){
     memset(new_client -> username, NULLPTR, 10);
@@ -56,11 +68,49 @@ void parse_request(char* incoming_msg, struct client* new_client){
     memcpy(new_client -> rival, incoming_msg+prev_index+1, strlen(incoming_msg) - prev_index-1);
 }
 
+void make_msg_ready(struct client first_client, char* msg){
+        char* port_str = (char *)malloc(PORT_LENGTH*sizeof(char));
+        msg = strcat(msg, first_client.username);
+        msg = strcat(msg, " ");
+        msg = strcat(msg, first_client.ip);
+        msg = strcat(msg," ");
+        port_str = toArray(first_client.port);
+        msg = strcat(msg, port_str);
+        msg = strcat(msg, " ");      
+}
+
+void check_for_pariring(int* client_socket, struct client* waiting_clients, int own_id){
+    int first_sd, second_sd, numbytes;
+    char* msg_to_first = "You're Paired!";
+    char msg_to_second[40];
+    second_sd = client_socket[own_id];
+    for (int i = 0;i < MAX_CLIENTS; i++){
+        first_sd = client_socket[i];
+        if (first_sd > 0 && i != own_id){
+            make_msg_ready(waiting_clients[i], msg_to_second);          
+            if ((numbytes = send(first_sd, msg_to_first, strlen(msg_to_first), 0)) == -1) {
+                perror("send");
+                exit(1);
+            }
+            if ((numbytes = send(second_sd, msg_to_second, strlen(msg_to_second), 0)) == -1) {
+                perror("send");
+                exit(1);
+            }
+            close(first_sd);
+            close(second_sd);
+            client_socket[i] = 0;
+            client_socket[own_id] = 0;
+            clean_struct(&waiting_clients[i]);
+            clean_struct(&waiting_clients[own_id]);
+            break;
+        }
+    }
+}
+
 int main(int argc , char *argv[]){   
-    int master_socket , addrlen , new_socket , client_socket[30] , activity, i , valread , sd;   
-    int max_sd;
+    int master_socket , addrlen , new_socket , client_socket[30] , activity, i , valread , sd , max_sd;
     struct sockaddr_in address;   
-    struct client clients[30];     
+    struct client waiting_clients[30];     
     char buffer[1025];          
     fd_set readfds;   
 
@@ -138,8 +188,9 @@ int main(int argc , char *argv[]){
                 else{   
                     buffer[valread] = '\0';  
                     printf("%s\n",buffer);
-                    clean_struct(&clients[i]);
-                    parse_request(buffer, &clients[i]);
+                    clean_struct(&waiting_clients[i]);
+                    parse_request(buffer, &waiting_clients[i]);
+                    check_for_pariring(client_socket, waiting_clients, i);
                 }   
             }
         }   
