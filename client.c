@@ -19,6 +19,13 @@
 #define PORT_LENGTH 5
 #define TRUE 1
 #define FALSE 0
+#define NULLPTR '\0'
+
+struct rival{
+    char username[10];
+    char ip[10];
+    int port;
+};
 
 char* toArray(int number){
     int n = log10(number) + 1;
@@ -63,11 +70,47 @@ void make_msg_ready(char* username, int port, char* msg){
         msg = strcat(msg, " ");
 }
 
-int rival_found(){
-    return FALSE;
+void parse_request(char* incoming_msg, struct rival* riv){
+    int space_count = 0, prev_index;
+    char temp[5];
+    for (int i = 0; i < strlen(incoming_msg); i++){
+        if (incoming_msg[i] == ' '){
+            space_count++;
+            switch(space_count){
+                case 1:
+                    memcpy(riv -> username, incoming_msg, i); 
+                    prev_index = i;
+                break;
+                case 2:
+                    memcpy(riv -> ip, incoming_msg+prev_index+1, i - prev_index-1);
+                    prev_index = i;
+                break;
+                case 3:
+                    memcpy(temp, incoming_msg+prev_index+1, i - prev_index-1);
+                    riv -> port = atoi(temp);
+                    prev_index = i;
+                break;
+            }
+        }
+    }
 }
 
-void connect_to_server(int* listening_port){
+void wait_for_rival(int socketfd, struct rival* riv){
+    int numbytes;
+    char buf[1024];
+    if ((numbytes = recv(socketfd, buf, 1025, 0)) == -1){
+        perror("recv");
+        exit(1);
+    }
+    buf[numbytes] = NULLPTR;
+    if(!strcmp(buf, "You're Paired!")){
+        return;
+    }else{
+        parse_request(buf, riv);
+    }
+}
+
+void connect_to_server(int* listening_port, struct rival* riv){
     int sockfd, numbytes;  
 	struct addrinfo hints, *servinfo, *p;
     struct sockaddr_in servaddr;
@@ -93,18 +136,19 @@ void connect_to_server(int* listening_port){
         printf("%d\n",*listening_port);
         make_msg_ready(username, *listening_port , msg);
         if ((numbytes = send(sockfd, msg, strlen(msg), 0)) == -1) {
-            perror("recv");
+            perror("send");
             exit(1);
         }
-        // while(!rival_found());
+        wait_for_rival(sockfd, riv);
         close(sockfd);
 }
 
 int main(int argc, char *argv[]){
 	int listening_port;
+    struct rival* riv;
     // while(true){
     //if (server_is_up()){
-        connect_to_server(&listening_port);
+        connect_to_server(&listening_port , riv);
     //}
     // }
 	return 0;

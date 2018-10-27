@@ -140,7 +140,6 @@ int main(int argc , char *argv[]){
                     printf("%s\n",buffer);
                     clean_struct(&clients[i]);
                     parse_request(buffer, &clients[i]);
-                    printf("%s %s %d %s\n", clients[i].username, clients[i].ip, clients[i].port, clients[i].rival);   
                 }   
             }
         }   
