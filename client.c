@@ -103,13 +103,14 @@ void wait_for_rival(int socketfd, struct rival* riv){
         exit(1);
     }
     buf[numbytes] = NULLPTR;
+    puts("You're Paired!");
     if(strcmp(buf, "You're Paired!") == 0){
         return;
     }
     parse_request(buf, riv);
 }
 
-void connect_to_server(int* listening_port, struct rival* riv){
+int connect_to_server(int* listening_port, struct rival* riv){
     int sockfd, numbytes;  
 	struct addrinfo hints, *servinfo, *p;
     struct sockaddr_in servaddr;
@@ -138,16 +139,17 @@ void connect_to_server(int* listening_port, struct rival* riv){
             perror("send");
             exit(1);
         }
-        wait_for_rival(sockfd, riv);
-        close(sockfd);
+        return sockfd;
 }
 
 int main(int argc, char *argv[]){
-	int listening_port;
+	int listening_port, sockfd;
     struct rival riv;
     // while(true){
     //if (server_is_up()){
-        connect_to_server(&listening_port , &riv);
+        sockfd = connect_to_server(&listening_port , &riv);
+        wait_for_rival(sockfd,&riv);
+        close(sockfd);
     //}
     // }
 	return 0;
