@@ -197,19 +197,20 @@ int connect_to_rival(int role,struct rival riv, int listening_port){
     }
 }
 
-// int game_is_finished(char* map){
-//     for(int i=0; i < 199; i++){
-//         if (map[i] == '1')
-//             return FALSE;
-//     }
-//     return TRUE;
-// }
+int game_is_finished(char* map){
+    for(int i=0; i < 199; i++){
+        if (map[i] == '1')
+            return FALSE;
+    }
+    return TRUE;
+}
 
 void start_game(int role, int socket){
-    int numbytes,read_num;
+    int numbytes,read_num, x , y;
     char *msg = (char *)malloc(RIVAL_MSG_SIZE * sizeof(char));
     char buf[1024];
     char map[200];
+    char cord[4];
     int fd = open("map.txt",O_RDONLY);
     if (fd<0){
         perror("open");
@@ -218,40 +219,67 @@ void start_game(int role, int socket){
     read_num = read(fd , map, 200);
     map[read_num] = NULLPTR;
     puts("Map is loaded!");
-    for (int i = 0; i < 10; i++){
-        for (int j = 0; j < 10; j++){
-            write(1,&map[i*10+j],1);
+    for (int j = 0; j < 10; j++){
+        for (int i = 0; i < 20; i++){
+            write(1,&map[j*20+i],1);
         }
     }
-    if (role){
-        msg = "salam! let's start :D";
-        if ((numbytes = send(socket, msg, strlen(msg), 0)) == -1) {
-            perror("send");
-            exit(1);
-        }
-        while(!game_is_finished(map)){
-            puts("Coordinates:");
+    write(1,"\n",1);
+    // if (role){
+    //     msg = "salam! let's start :D";
+    //     if ((numbytes = send(socket, msg, strlen(msg), 0)) == -1) {
+    //         perror("send");
+    //         exit(1);
+    //     }
+    //     while(!game_is_finished(map)){
             
-        }
-    }else{
-        if ((numbytes = recv(socket, buf, 1025, 0)) == -1){
-            perror("recv");
-            exit(1);
-        }    
-        buf[numbytes] = NULLPTR;
-        printf("%s\n",buf);
-        while(!game_is_finished(map)){
-            puts("Coordinates:");
-
-        }
-    }
+    //         puts("Coordinates:");
+            
+    //     }
+    // }else{
+    //     if ((numbytes = recv(socket, buf, 1025, 0)) == -1){
+    //         perror("recv");
+    //         exit(1);
+    //     }    
+    //     buf[numbytes] = NULLPTR;
+    //     printf("%s\n",buf);
+    //     while(!game_is_finished(map)){
+    //         puts("Cordinates:");
+    //         read_num = read(0, cord , 4);
+    //         cord[read_num] = NULLPTR;
+    //         if ((numbytes = send(socket, cord, strlen(cord), 0)) == -1) {
+    //             perror("send");
+    //             exit(1);
+    //         }
+    //         if ((numbytes = recv(socket, buf, 1025, 0)) == -1){
+    //             perror("recv");
+    //             exit(1);
+    //         }  
+    //         buf[numbytes] = NULLPTR;
+    //         printf("%s\n",buf); 
+    //         if(strcmp(buf,"Good Shot :}") == 0){
+    //             continue;
+    //         } else if(strcmp(buf,"You Win :(") == 0){
+    //             break;
+    //         } else if(strcmp(buf,"Failed :D") == 0){
+    //             if ((numbytes = recv(socket, buf, 1025, 0)) == -1){
+    //                 perror("recv");
+    //                 exit(1);
+    //             }  
+    //             buf[numbytes] = NULLPTR;
+    //             printf("%s\n",buf);
+    //             x = atoi(buf[0]);
+    //             y = atoi(buf[2]);
+    //             if (map[])
+    //         }
+    //     }
+    // }
 }
 
 // 
 int main(int argc, char *argv[]){
 	int listening_port, sockfd, role;
     struct rival riv;
-    // while(true){
     //if (server_is_up()){
         sockfd = connect_to_server(&listening_port , &riv);
         role = wait_for_rival(sockfd,&riv);
@@ -259,6 +287,5 @@ int main(int argc, char *argv[]){
         sockfd = connect_to_rival(role,riv,listening_port);
         start_game(role, sockfd);
     //}
-    // }
 	return 0;
 }
