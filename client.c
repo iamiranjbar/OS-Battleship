@@ -13,7 +13,7 @@
 #include <math.h>
 #include <fcntl.h>
 
-#define SERVER_PORT 7275
+#define SERVER_PORT 7276
 #define USERNAME_MAX 10
 #define WELCOME_MSG_SIZE 31
 #define IP "127.0.0.1"
@@ -62,7 +62,17 @@ char* get_username(){
     return username;
 }
 
-void make_server_msg_ready(char* username, int port, char* msg){
+char* get_rival_username(){
+    char* rival_username = (char *)malloc(USERNAME_MAX * sizeof(char));
+    char* msg = "Please enter your rival username: (if you don't care, press ENTER)\n";
+    int rsz;
+    write(1, msg, 70);
+    rsz = read(0, rival_username, 70);
+    rival_username[rsz-1] = '\0';
+    return rival_username;
+}
+
+void make_server_msg_ready(char* username, int port, char* msg, char* rival_username){
         char* port_str = (char *)malloc(PORT_LENGTH*sizeof(char));
         msg = strcat(msg, username);
         msg = strcat(msg, " ");
@@ -70,6 +80,9 @@ void make_server_msg_ready(char* username, int port, char* msg){
         msg = strcat(msg," ");
         port_str = toArray(port);
         msg = strcat(msg, port_str);
+        msg = strcat(msg, " ");
+        // printf("--(%s)--",rival_username);
+        msg = strcat(msg, rival_username);
         msg = strcat(msg, " ");
 }
 
@@ -121,9 +134,10 @@ int connect_to_server(int* listening_port, struct rival* riv){
 	struct addrinfo hints, *servinfo, *p;
     struct sockaddr_in servaddr;
     char *msg = (char *)malloc(SERVER_MSG_SIZE * sizeof(char));
-    char *username;
+    char *username, *rival_username;
     username = get_username();
     *listening_port = generate_random_port();
+    rival_username = get_rival_username();
     printf("%d\n",*listening_port);
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
             perror("client: socket");
@@ -135,12 +149,11 @@ int connect_to_server(int* listening_port, struct rival* riv){
         servaddr.sin_port = htons(SERVER_PORT);
 
         if (connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr)) == -1) {
-            fprintf(stderr, "client: failed to connect\n");
             perror("client: connect");
             close(sockfd);
             exit(-1);
         }
-        make_server_msg_ready(username, *listening_port , msg);
+        make_server_msg_ready(username, *listening_port , msg, rival_username);
         if ((numbytes = send(sockfd, msg, strlen(msg), 0)) == -1) {
             perror("send");
             exit(1);
@@ -164,7 +177,6 @@ int connect_to_rival(int role,struct rival riv, int listening_port){
         rivaddr.sin_addr.s_addr = inet_addr(riv.ip);
         rivaddr.sin_port = htons(riv.port);
         if (connect(sockfd, (struct sockaddr*) &rivaddr, sizeof(rivaddr)) == -1) {
-            fprintf(stderr, "client: failed to connect\n");
             perror("client: connect");
             close(sockfd);
             exit(-1);
@@ -344,13 +356,3 @@ int main(int argc, char *argv[]){
 }
 
 
-// 1 0 0 1 1 1 0 0 0 0
-// 1 0 0 0 0 1 1 0 0 0
-// 1 0 0 0 0 1 0 1 1 1
-// 1 0 0 0 0 0 0 1 0 0
-// 0 0 0 0 0 0 0 0 0 0
-// 0 0 0 0 0 0 0 0 0 0
-// 1 1 1 0 0 0 0 0 1 0
-// 0 0 0 0 0 0 0 0 1 0
-// 0 0 0 0 0 0 0 0 1 0
-// 0 0 1 1 1 0 0 0 1 0

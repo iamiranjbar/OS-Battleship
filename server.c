@@ -12,7 +12,7 @@
 
 #define TRUE   1  
 #define FALSE  0  
-#define LISTEN_PORT 7275 
+#define LISTEN_PORT 7276 
 #define MAX_PENDING 5
 #define MAX_CLIENTS 30
 #define NULLPTR '\0'
@@ -65,7 +65,7 @@ void parse_request(char* incoming_msg, struct client* new_client){
             }
         }
     }
-    memcpy(new_client -> rival, incoming_msg+prev_index+1, strlen(incoming_msg) - prev_index-1);
+    memcpy(new_client -> rival, incoming_msg+prev_index+1, strlen(incoming_msg) - prev_index-2);
 }
 
 void make_msg_ready(struct client first_client, char* msg){
@@ -86,7 +86,12 @@ void check_for_pariring(int* client_socket, struct client* waiting_clients, int 
     second_sd = client_socket[own_id];
     for (int i = 0;i < MAX_CLIENTS; i++){
         first_sd = client_socket[i];
-        if (first_sd > 0 && i != own_id){
+        if (first_sd > 0 && i != own_id && 
+            (
+                (waiting_clients[i].rival[0] == NULLPTR && waiting_clients[own_id].rival[0] == NULLPTR) ||
+                (strcmp(waiting_clients[own_id].username,waiting_clients[i].rival) == 0)
+            ) 
+            ){
             make_msg_ready(waiting_clients[i], msg_to_second);          
             if ((numbytes = send(first_sd, msg_to_first, strlen(msg_to_first), 0)) == -1) {
                 perror("send");
@@ -176,7 +181,8 @@ int main(int argc , char *argv[]){
             }   
         }   
              
-        for (i = 0; i < MAX_CLIENTS; i++){   
+        for (i = 0; i < MAX_CLIENTS; i++){
+            // printf("%s--%s--%d\n",waiting_clients[i].username,waiting_clients[i].ip,waiting_clients[i].port);   
             sd = client_socket[i];     
             if (FD_ISSET( sd , &readfds)){   
                 if ((valread = read( sd , buffer, 1024)) == 0){  
