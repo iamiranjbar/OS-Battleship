@@ -149,9 +149,11 @@ int connect_to_server(int* listening_port, struct rival* riv){
 }
 
 int connect_to_rival(int role,struct rival riv, int listening_port){
-    int sockfd, numbytes, listen_socket, new_socket, addrlen;  
+    int sockfd, numbytes, listen_socket, addrlen;  
 	struct addrinfo hints, *servinfo, *p;
     struct sockaddr_in rivaddr,address;
+    char* msg=(char*)malloc(RIVAL_MSG_SIZE*sizeof(char));;
+    char buf[1025];
     if (role){
         if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
             perror("client: socket");
@@ -166,6 +168,11 @@ int connect_to_rival(int role,struct rival riv, int listening_port){
             perror("client: connect");
             close(sockfd);
             exit(-1);
+        }
+        msg = "salam! let's start :D";
+        if ((numbytes = send(sockfd, msg, strlen(msg), 0)) == -1) {
+            perror("send");
+            exit(1);
         }
         return sockfd;
     }
@@ -193,21 +200,94 @@ int connect_to_rival(int role,struct rival riv, int listening_port){
                 perror("accept");   
                 exit(EXIT_FAILURE);   
         }
+        if ((numbytes = recv(listen_socket, buf, 1025, 0)) == -1){
+            perror("recv");
+            exit(1);
+        }    
+        buf[numbytes] = NULLPTR;
+        printf("%s\n",buf);
         return listen_socket;
     }
 }
 
 int game_is_finished(char* map){
     for(int i=0; i < 199; i++){
+        if (i % 2 == 1)
+            continue;
         if (map[i] == '1')
             return FALSE;
     }
     return TRUE;
 }
 
-void start_game(int role, int socket){
-    int numbytes,read_num, x , y;
-    char *msg = (char *)malloc(RIVAL_MSG_SIZE * sizeof(char));
+int get_cord(int sockfd){
+    int read_num,numbytes;
+    char cord[4], buf[1024];
+    puts("Cordinates:");
+    read_num = read(0, cord , 4);
+    cord[read_num] = NULLPTR;
+    if ((numbytes = send(sockfd, cord, strlen(cord), 0)) == -1) {
+        perror("send");
+        exit(1);
+    }
+    if ((numbytes = recv(sockfd, buf, 1025, 0)) == -1){
+        perror("recv");
+        exit(1);
+    }  
+    buf[numbytes] = NULLPTR;
+    printf("%s\n",buf);
+    if(strcmp(buf,"Good Shot :}") == 0){
+        return get_cord(sockfd);
+    } else if(strcmp(buf,"You Win :(") == 0){
+        return TRUE;
+    } else if(strcmp(buf,"Failed :D") == 0){
+        return FALSE;
+    }
+    return TRUE;
+}
+
+int recv_cord(int sockfd,char* map){
+    int numbytes, x, y;
+    char buf[1024];
+    char* msg= (char*)malloc(RIVAL_MSG_SIZE*sizeof(char));
+    if ((numbytes = recv(sockfd, buf, 1025, 0)) == -1){
+        perror("recv");
+        exit(1);
+    }  
+    buf[numbytes] = NULLPTR;
+    printf("%s\n",buf);
+    x = atoi(&buf[0]);
+    y = atoi(&buf[2]);
+    if (map[y*20 + 2*x] == '1'){
+        map[y*20 + 2*x] = '0';
+        if(game_is_finished(map)){
+            msg = strcpy(msg,"You Win :(");
+            if ((numbytes = send(sockfd, msg, strlen(msg), 0)) == -1) {
+                perror("send");
+                exit(1);
+            }
+            return TRUE;
+        }
+        else{
+            msg= strcpy(msg,"Good Shot :}");
+            if ((numbytes = send(sockfd, msg, strlen(msg), 0)) == -1) {
+                perror("send");
+                exit(1);
+            }
+            return recv_cord(sockfd, map);
+        }
+    }else{
+        msg = strcpy(msg,"Failed :D");
+        if ((numbytes = send(sockfd, msg, strlen(msg), 0)) == -1) {
+            perror("send");
+            exit(1);
+        }
+        return FALSE;
+    }
+}
+
+void start_game(int role, int sockfd){
+    int numbytes,read_num;
     char buf[1024];
     char map[200];
     char cord[4];
@@ -225,58 +305,31 @@ void start_game(int role, int socket){
         }
     }
     write(1,"\n",1);
-    // if (role){
-    //     msg = "salam! let's start :D";
-    //     if ((numbytes = send(socket, msg, strlen(msg), 0)) == -1) {
-    //         perror("send");
-    //         exit(1);
-    //     }
-    //     while(!game_is_finished(map)){
-            
-    //         puts("Coordinates:");
-            
-    //     }
-    // }else{
-    //     if ((numbytes = recv(socket, buf, 1025, 0)) == -1){
-    //         perror("recv");
-    //         exit(1);
-    //     }    
-    //     buf[numbytes] = NULLPTR;
-    //     printf("%s\n",buf);
-    //     while(!game_is_finished(map)){
-    //         puts("Cordinates:");
-    //         read_num = read(0, cord , 4);
-    //         cord[read_num] = NULLPTR;
-    //         if ((numbytes = send(socket, cord, strlen(cord), 0)) == -1) {
-    //             perror("send");
-    //             exit(1);
-    //         }
-    //         if ((numbytes = recv(socket, buf, 1025, 0)) == -1){
-    //             perror("recv");
-    //             exit(1);
-    //         }  
-    //         buf[numbytes] = NULLPTR;
-    //         printf("%s\n",buf); 
-    //         if(strcmp(buf,"Good Shot :}") == 0){
-    //             continue;
-    //         } else if(strcmp(buf,"You Win :(") == 0){
-    //             break;
-    //         } else if(strcmp(buf,"Failed :D") == 0){
-    //             if ((numbytes = recv(socket, buf, 1025, 0)) == -1){
-    //                 perror("recv");
-    //                 exit(1);
-    //             }  
-    //             buf[numbytes] = NULLPTR;
-    //             printf("%s\n",buf);
-    //             x = atoi(buf[0]);
-    //             y = atoi(buf[2]);
-    //             if (map[])
-    //         }
-    //     }
-    // }
+    if (role){
+        while(!game_is_finished(map)){
+            if (recv_cord(sockfd, map)){
+                puts("You LOSE!");
+                break;
+            }
+            if (get_cord(sockfd)){
+                puts("You WIN:D");
+                break;
+            } 
+        }
+    }else{
+        while(!game_is_finished(map)){
+            if (get_cord(sockfd)){
+                puts("You WIN:D");
+                break;
+            } 
+            if (recv_cord(sockfd, map)){
+                puts("You LOSE!");
+                break;
+            }
+        }
+    }
 }
 
-// 
 int main(int argc, char *argv[]){
 	int listening_port, sockfd, role;
     struct rival riv;
@@ -289,3 +342,15 @@ int main(int argc, char *argv[]){
     //}
 	return 0;
 }
+
+
+// 1 0 0 1 1 1 0 0 0 0
+// 1 0 0 0 0 1 1 0 0 0
+// 1 0 0 0 0 1 0 1 1 1
+// 1 0 0 0 0 0 0 1 0 0
+// 0 0 0 0 0 0 0 0 0 0
+// 0 0 0 0 0 0 0 0 0 0
+// 1 1 1 0 0 0 0 0 1 0
+// 0 0 0 0 0 0 0 0 1 0
+// 0 0 0 0 0 0 0 0 1 0
+// 0 0 1 1 1 0 0 0 1 0
