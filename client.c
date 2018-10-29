@@ -341,17 +341,62 @@ void start_game(int role, int sockfd){
     }
 }
 
+int server_is_up(char *argv[]){
+    int sockfd;
+	int rv;
+	int numbytes;
+    struct sockaddr_storage serv_addr;
+	struct sockaddr_in addr;
+	char buf[100];
+	socklen_t addr_len;
+	char s[INET6_ADDRSTRLEN];
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+        perror("listener: socket");
+        exit(1);
+    }
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(atoi(argv[2])); 
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        close(sockfd);
+        perror("listener: bind");
+        exit(1);
+    }
+
+	printf("listener: waiting to recvfrom...\n");
+
+	addr_len = sizeof serv_addr;
+	if ((numbytes = recvfrom(sockfd, buf, 99 , 0, (struct sockaddr *)&serv_addr, &addr_len)) == -1) {
+		perror("recvfrom");
+		exit(1);
+	}
+
+	printf("listener: got packet from %s\n",
+		inet_ntop(serv_addr.ss_family,
+			get_in_addr((struct sockaddr *)&serv_addr),
+			s, sizeof s));
+	printf("listener: packet is %d bytes long\n", numbytes);
+	buf[numbytes] = '\0';
+	printf("listener: packet contains \"%s\"\n", buf);
+
+	close(sockfd);
+    return TRUE;
+}
+
 int main(int argc, char *argv[]){
 	int listening_port, sockfd, role;
     struct rival riv;
-    //if (server_is_up()){
+    if (server_is_up(argv)){
         sockfd = connect_to_server(&listening_port , &riv);
         role = wait_for_rival(sockfd,&riv);
         close(sockfd);
         sockfd = connect_to_rival(role,riv,listening_port);
         start_game(role, sockfd);
-    //}
+    }else{
+
+    }
 	return 0;
 }
-
-

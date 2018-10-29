@@ -130,11 +130,6 @@ void send_heartbeat_message(char *argv[]){
     broad_addr.sin_port = htons(atoi(argv[2])); 
     broad_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(sockfd, (struct sockaddr*)&broad_addr, sizeof(broad_addr)) == -1){
-        perror("bind");
-        exit(1);
-    }
-
     while(TRUE){
         if ((numbytes=sendto(sockfd, msg, strlen(msg), 0,
              (struct sockaddr *)&broad_addr, sizeof(broad_addr))) == -1) {
