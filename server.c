@@ -112,6 +112,38 @@ void check_for_pariring(int* client_socket, struct client* waiting_clients, int 
     }
 }
 
+void send_heartbeat_message(char *argv[]){
+    int sockfd, numbytes , broadcast = 1;
+    struct sockaddr_in broad_addr;
+    char msg[6]= "hello";
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+        perror("socket");
+        exit(1);
+    }
+    if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast,
+        sizeof broadcast) == -1) {
+        perror("setsockopt (SO_BROADCAST)");
+        exit(1);
+    }
+    broad_addr.sin_family = AF_INET;
+    broad_addr.sin_port = htons(atoi(argv[2])); 
+    broad_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(sockfd, (struct sockaddr*)&broad_addr, sizeof(broad_addr)) == -1){
+        perror("bind");
+        exit(1);
+    }
+
+    while(TRUE){
+        if ((numbytes=sendto(sockfd, msg, strlen(msg), 0,
+             (struct sockaddr *)&broad_addr, sizeof(broad_addr))) == -1) {
+            perror("sendto");
+            exit(1);
+        }
+    }
+}
+
 int main(int argc , char *argv[]){   
     int master_socket , addrlen , new_socket , client_socket[30] , activity, i , valread , sd , max_sd;
     struct sockaddr_in address;   
@@ -145,62 +177,64 @@ int main(int argc , char *argv[]){
          
     addrlen = sizeof(address);   
     printf("Waiting for connections ...");   
-         
-    while(TRUE){   
+    if (fork() == 0){
+        close(master_socket);
+        send_heartbeat_message(argv);
+    }else{   
+        while(TRUE){   
+            FD_ZERO(&readfds);   
+            FD_SET(master_socket, &readfds);   
+            max_sd = master_socket;        
+            for ( i = 0 ; i < MAX_CLIENTS ; i++){   
+                sd = client_socket[i];   
+                if(sd > 0)   
+                    FD_SET( sd , &readfds);   
+                if(sd > max_sd)   
+                    max_sd = sd;   
+            } 
 
-        FD_ZERO(&readfds);   
-        FD_SET(master_socket, &readfds);   
-        max_sd = master_socket;        
-        for ( i = 0 ; i < MAX_CLIENTS ; i++){   
-            sd = client_socket[i];   
-            if(sd > 0)   
-                FD_SET( sd , &readfds);   
-            if(sd > max_sd)   
-                max_sd = sd;   
-        } 
-
-        activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL);   
-        if ((activity < 0) && (errno!=EINTR)){   
-            printf("select error");
-            continue;   
-        }   
-             
-        if (FD_ISSET(master_socket, &readfds)){   
-            if ((new_socket = accept(master_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen))<0)   {   
-                perror("accept");   
-                exit(EXIT_FAILURE);   
-            }               
-            printf("New connection , socket fd is %d , ip is : %s , port : %d \n" , new_socket , inet_ntoa(address.sin_addr) , ntohs (address.sin_port));   
-                 
-            for (i = 0; i < MAX_CLIENTS; i++){   
-                if( client_socket[i] == 0 ){   
-                    client_socket[i] = new_socket;   
-                    printf("Adding to list of sockets as %d \n" , i);      
-                    break;   
+            activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL);   
+            if ((activity < 0) && (errno!=EINTR)){   
+                printf("select error");
+                continue;   
+            }   
+                
+            if (FD_ISSET(master_socket, &readfds)){   
+                if ((new_socket = accept(master_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen))<0)   {   
+                    perror("accept");   
+                    exit(EXIT_FAILURE);   
+                }               
+                printf("New connection , socket fd is %d , ip is : %s , port : %d \n" , new_socket , inet_ntoa(address.sin_addr) , ntohs (address.sin_port));   
+                    
+                for (i = 0; i < MAX_CLIENTS; i++){   
+                    if( client_socket[i] == 0 ){   
+                        client_socket[i] = new_socket;   
+                        printf("Adding to list of sockets as %d \n" , i);      
+                        break;   
+                    }   
                 }   
             }   
+                
+            for (i = 0; i < MAX_CLIENTS; i++){
+                // printf("%s--%s--%d\n",waiting_clients[i].username,waiting_clients[i].ip,waiting_clients[i].port);   
+                sd = client_socket[i];     
+                if (FD_ISSET( sd , &readfds)){   
+                    if ((valread = read( sd , buffer, 1024)) == 0){  
+                        getpeername(sd , (struct sockaddr*)&address , (socklen_t*)&addrlen);   
+                        printf("Host disconnected , ip %s , port %d \n", inet_ntoa(address.sin_addr) , ntohs(address.sin_port));   
+                        close( sd );   
+                        client_socket[i] = 0;   
+                    }   
+                    else{   
+                        buffer[valread] = '\0';  
+                        printf("%s\n",buffer);
+                        clean_struct(&waiting_clients[i]);
+                        parse_request(buffer, &waiting_clients[i]);
+                        check_for_pariring(client_socket, waiting_clients, i);
+                    }   
+                }
+            }   
         }   
-             
-        for (i = 0; i < MAX_CLIENTS; i++){
-            // printf("%s--%s--%d\n",waiting_clients[i].username,waiting_clients[i].ip,waiting_clients[i].port);   
-            sd = client_socket[i];     
-            if (FD_ISSET( sd , &readfds)){   
-                if ((valread = read( sd , buffer, 1024)) == 0){  
-                    getpeername(sd , (struct sockaddr*)&address , (socklen_t*)&addrlen);   
-                    printf("Host disconnected , ip %s , port %d \n", inet_ntoa(address.sin_addr) , ntohs(address.sin_port));   
-                    close( sd );   
-                    client_socket[i] = 0;   
-                }   
-                else{   
-                    buffer[valread] = '\0';  
-                    printf("%s\n",buffer);
-                    clean_struct(&waiting_clients[i]);
-                    parse_request(buffer, &waiting_clients[i]);
-                    check_for_pariring(client_socket, waiting_clients, i);
-                }   
-            }
-        }   
-    }   
-         
+    }     
     return 0;   
 }  

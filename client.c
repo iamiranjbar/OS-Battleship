@@ -81,7 +81,6 @@ void make_server_msg_ready(char* username, int port, char* msg, char* rival_user
         port_str = toArray(port);
         msg = strcat(msg, port_str);
         msg = strcat(msg, " ");
-        // printf("--(%s)--",rival_username);
         msg = strcat(msg, rival_username);
         msg = strcat(msg, " ");
 }
