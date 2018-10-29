@@ -23,6 +23,7 @@
 #define TRUE 1
 #define FALSE 0
 #define NULLPTR '\0'
+#define PAIR_MSG_LENGTH 40
 
 struct rival{
     char username[10];
@@ -139,25 +140,25 @@ int connect_to_server(int* listening_port, struct rival* riv, char* server_ip, i
     rival_username = get_rival_username();
     printf("%d\n",*listening_port);
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-            perror("client: socket");
-            exit(1);
-        }
+        perror("client: socket");
+        exit(1);
+    }
 
-        servaddr.sin_family = AF_INET;
-        servaddr.sin_addr.s_addr = INADDR_ANY;
-        servaddr.sin_port = htons(server_port);
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = INADDR_ANY;
+    servaddr.sin_port = htons(server_port);
 
-        if (connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr)) == -1) {
-            perror("client: connect");
-            close(sockfd);
-            exit(-1);
-        }
-        make_server_msg_ready(username, *listening_port , msg, rival_username);
-        if ((numbytes = send(sockfd, msg, strlen(msg), 0)) == -1) {
-            perror("send");
-            exit(1);
-        }
-        return sockfd;
+    if (connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr)) == -1) {
+        perror("client: connect");
+        close(sockfd);
+        exit(-1);
+    }
+    make_server_msg_ready(username, *listening_port , msg, rival_username);
+    if ((numbytes = send(sockfd, msg, strlen(msg), 0)) == -1) {
+        perror("send");
+        exit(1);
+    }
+    return sockfd;
 }
 
 int connect_to_rival(int role,struct rival riv, int listening_port){
@@ -407,6 +408,48 @@ int server_is_up(char *argv[],char* server_ip,int* server_port){
     return TRUE;
 }
 
+void broadcast_for_rival(char *argv[], int* listening_port){
+    clock_t prev, now;
+    double cpu_time_used;
+    prev = clock();
+    int sockfd, numbytes , broadcast = 1;
+    struct sockaddr_in broad_addr;
+    char* msg= (char*)malloc(PAIR_MSG_LENGTH*sizeof(char)); 
+    char *username , *rival_username;
+
+    username = get_username();
+    *listening_port = generate_random_port();
+    rival_username = get_rival_username();
+    printf("%d\n",*listening_port);
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+        perror("socket");
+        exit(1);
+    }
+    if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof broadcast) == -1) {
+        perror("setsockopt (SO_BROADCAST)");
+        exit(1);
+    }
+
+    broad_addr.sin_family = AF_INET;
+    broad_addr.sin_port = htons(atoi(argv[4])); 
+    broad_addr.sin_addr.s_addr = INADDR_ANY;
+
+    make_server_msg_ready(username, atoi(argv[4]), msg, rival_username);
+    while(TRUE){
+        now = clock();
+        cpu_time_used = ((double) (now - prev)) / CLOCKS_PER_SEC;
+        if (cpu_time_used > 1){
+            prev = now;
+            if ((numbytes=sendto(sockfd, msg, strlen(msg), 0, (struct sockaddr *)&broad_addr, sizeof(broad_addr))) == -1) {
+                perror("sendto");
+                exit(1);
+            }
+            write(1,"Broadcasting for rival...\n",27);
+        }
+    }
+}
+
 int main(int argc, char *argv[]){
 	int listening_port, sockfd, role, server_port;
     struct rival riv;
@@ -418,7 +461,7 @@ int main(int argc, char *argv[]){
         sockfd = connect_to_rival(role,riv,listening_port);
         start_game(role, sockfd);
     }else{
-
+        broadcast_for_rival(argv, &listening_port);
     }
 	return 0;
 }

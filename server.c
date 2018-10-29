@@ -130,7 +130,7 @@ void send_heartbeat_message(char *argv[]){
     prev = clock();
     int sockfd, numbytes , broadcast = 1;
     struct sockaddr_in broad_addr;
-    char* msg= (char*)malloc(HEARTBEAT_LENGTH*sizeof(char)); //"127.0.0.1 2345 <3"
+    char* msg= (char*)malloc(HEARTBEAT_LENGTH*sizeof(char)); 
 
     if ((sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         perror("socket");
@@ -155,7 +155,7 @@ void send_heartbeat_message(char *argv[]){
                 perror("sendto");
                 exit(1);
             }
-            printf("Send :D\n");
+            write(1,"<3 Send :D\n",12);
         }
     }
 }
@@ -232,7 +232,6 @@ int main(int argc , char *argv[]){
             }   
                 
             for (i = 0; i < MAX_CLIENTS; i++){
-                // printf("%s--%s--%d\n",waiting_clients[i].username,waiting_clients[i].ip,waiting_clients[i].port);   
                 sd = client_socket[i];     
                 if (FD_ISSET( sd , &readfds)){   
                     if ((valread = read( sd , buffer, 1024)) == 0){  
