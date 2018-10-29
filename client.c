@@ -13,7 +13,7 @@
 #include <math.h>
 #include <fcntl.h>
 
-#define SERVER_PORT 7276
+// #define SERVER_PORT 7276
 #define USERNAME_MAX 10
 #define WELCOME_MSG_SIZE 31
 #define IP "127.0.0.1"
@@ -128,7 +128,7 @@ int wait_for_rival(int socketfd, struct rival* riv){
     return 1;
 }
 
-int connect_to_server(int* listening_port, struct rival* riv){
+int connect_to_server(int* listening_port, struct rival* riv, char* server_ip, int server_port){
     int sockfd, numbytes;  
 	struct addrinfo hints, *servinfo, *p;
     struct sockaddr_in servaddr;
@@ -145,7 +145,7 @@ int connect_to_server(int* listening_port, struct rival* riv){
 
         servaddr.sin_family = AF_INET;
         servaddr.sin_addr.s_addr = INADDR_ANY;
-        servaddr.sin_port = htons(SERVER_PORT);
+        servaddr.sin_port = htons(server_port);
 
         if (connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr)) == -1) {
             perror("client: connect");
@@ -341,24 +341,51 @@ void start_game(int role, int sockfd){
     }
 }
 
-int server_is_up(char *argv[]){
-    int sockfd;
-	int rv;
-	int numbytes;
-    struct sockaddr_storage serv_addr;
+void parse_heartbeat(char* incoming_msg, char* ip, int* port){
+    int space_count = 0, prev_index;
+    char temp[6];
+    for (int i = 0; i < strlen(incoming_msg); i++){
+        if (incoming_msg[i] == ' '){
+            space_count++;
+            switch(space_count){
+                case 1:
+                    memcpy(ip, incoming_msg, i);
+                    ip[i] = NULLPTR;
+                    prev_index = i;
+                break;
+                case 2:
+                    memcpy(temp, incoming_msg+prev_index+1, i - prev_index-1);
+                    *port = atoi(temp);
+                    prev_index = i;
+                break;
+            }
+        }
+    }
+}
+
+int server_is_up(char *argv[],char* server_ip,int* server_port){
+    int sockfd, numbytes, broadcast = 1;
 	struct sockaddr_in addr;
 	char buf[100];
 	socklen_t addr_len;
-	char s[INET6_ADDRSTRLEN];
+    struct timeval tout;
 
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+    tout.tv_sec = 2;
+    tout.tv_usec = 0;
+
+    if ((sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         perror("listener: socket");
         exit(1);
     }
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(atoi(argv[2])); 
-    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_addr.s_addr = inet_addr(IP);
+
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tout, sizeof(tout)) < 0){
+        close(sockfd);
+        return FALSE;
+    }
 
     if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
         close(sockfd);
@@ -368,26 +395,24 @@ int server_is_up(char *argv[]){
 
 	printf("listener: waiting to recive hearbeat <3...\n");
 
-	addr_len = sizeof serv_addr;
-
-    while (TRUE){
-        if ((numbytes = recvfrom(sockfd, buf, 99 , 0, (struct sockaddr *)&serv_addr, &addr_len)) == -1) {
-            perror("recvfrom");
-            exit(1);
-        }
-
-        buf[numbytes] = '\0';
-        printf("listener: packet contains \"%s\"\n", buf);
+	addr_len = sizeof(addr);
+    if ((numbytes = recvfrom(sockfd, buf, 99 , 0, NULL, 0)) == -1) {
+        close(sockfd);
+        return FALSE;
     }
+    buf[numbytes] = '\0';
+    printf("listener: packet contains \"%s\"\n", buf);
+    parse_heartbeat(buf,server_ip,server_port);
     close(sockfd);
     return TRUE;
 }
 
 int main(int argc, char *argv[]){
-	int listening_port, sockfd, role;
+	int listening_port, sockfd, role, server_port;
     struct rival riv;
-    if (server_is_up(argv)){
-        sockfd = connect_to_server(&listening_port , &riv);
+    char server_ip[10];
+    if (server_is_up(argv,server_ip, &server_port)){
+        sockfd = connect_to_server(&listening_port, &riv, server_ip, server_port);
         role = wait_for_rival(sockfd,&riv);
         close(sockfd);
         sockfd = connect_to_rival(role,riv,listening_port);

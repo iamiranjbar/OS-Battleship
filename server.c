@@ -132,15 +132,15 @@ void send_heartbeat_message(char *argv[]){
     struct sockaddr_in broad_addr;
     char* msg= (char*)malloc(HEARTBEAT_LENGTH*sizeof(char)); //"127.0.0.1 2345 <3"
 
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+    if ((sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         perror("socket");
         exit(1);
     }
-    if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast,
-        sizeof broadcast) == -1) {
+    if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof broadcast) == -1) {
         perror("setsockopt (SO_BROADCAST)");
         exit(1);
     }
+
     broad_addr.sin_family = AF_INET;
     broad_addr.sin_port = htons(atoi(argv[2])); 
     broad_addr.sin_addr.s_addr = INADDR_ANY;
@@ -151,11 +151,11 @@ void send_heartbeat_message(char *argv[]){
         cpu_time_used = ((double) (now - prev)) / CLOCKS_PER_SEC;
         if (cpu_time_used > 1){
             prev = now;
-            if ((numbytes=sendto(sockfd, msg, strlen(msg), 0,
-                (struct sockaddr *)&broad_addr, sizeof(broad_addr))) == -1) {
+            if ((numbytes=sendto(sockfd, msg, strlen(msg), 0, (struct sockaddr *)&broad_addr, sizeof(broad_addr))) == -1) {
                 perror("sendto");
                 exit(1);
             }
+            printf("Send :D\n");
         }
     }
 }
