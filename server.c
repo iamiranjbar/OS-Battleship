@@ -17,6 +17,8 @@
 #define MAX_CLIENTS 30
 #define NULLPTR '\0'
 #define PORT_LENGTH 5
+#define IP "127.0.0.1"
+#define HEARTBEAT_LENGTH 18
 
 struct client{
     char username[10];
@@ -112,10 +114,23 @@ void check_for_pariring(int* client_socket, struct client* waiting_clients, int 
     }
 }
 
+void make_heartbeat(char* msg){
+    char* port_str = (char*)malloc(PORT_LENGTH*sizeof(char)); 
+    msg = strcat(msg, IP);
+    msg = strcat(msg, " ");
+    port_str = toArray(LISTEN_PORT);
+    msg = strcat(msg, port_str);
+    msg = strcat(msg, " ");
+    msg = strcat(msg,"<3");
+}
+
 void send_heartbeat_message(char *argv[]){
+    clock_t prev, now;
+    double cpu_time_used;
+    prev = clock();
     int sockfd, numbytes , broadcast = 1;
     struct sockaddr_in broad_addr;
-    char msg[6]= "hello";
+    char* msg= (char*)malloc(HEARTBEAT_LENGTH*sizeof(char)); //"127.0.0.1 2345 <3"
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
         perror("socket");
@@ -130,11 +145,17 @@ void send_heartbeat_message(char *argv[]){
     broad_addr.sin_port = htons(atoi(argv[2])); 
     broad_addr.sin_addr.s_addr = INADDR_ANY;
 
+    make_heartbeat(msg);
     while(TRUE){
-        if ((numbytes=sendto(sockfd, msg, strlen(msg), 0,
-             (struct sockaddr *)&broad_addr, sizeof(broad_addr))) == -1) {
-            perror("sendto");
-            exit(1);
+        now = clock();
+        cpu_time_used = ((double) (now - prev)) / CLOCKS_PER_SEC;
+        if (cpu_time_used > 1){
+            prev = now;
+            if ((numbytes=sendto(sockfd, msg, strlen(msg), 0,
+                (struct sockaddr *)&broad_addr, sizeof(broad_addr))) == -1) {
+                perror("sendto");
+                exit(1);
+            }
         }
     }
 }

@@ -366,23 +366,20 @@ int server_is_up(char *argv[]){
         exit(1);
     }
 
-	printf("listener: waiting to recvfrom...\n");
+	printf("listener: waiting to recive hearbeat <3...\n");
 
 	addr_len = sizeof serv_addr;
-	if ((numbytes = recvfrom(sockfd, buf, 99 , 0, (struct sockaddr *)&serv_addr, &addr_len)) == -1) {
-		perror("recvfrom");
-		exit(1);
-	}
 
-	printf("listener: got packet from %s\n",
-		inet_ntop(serv_addr.ss_family,
-			get_in_addr((struct sockaddr *)&serv_addr),
-			s, sizeof s));
-	printf("listener: packet is %d bytes long\n", numbytes);
-	buf[numbytes] = '\0';
-	printf("listener: packet contains \"%s\"\n", buf);
+    while (TRUE){
+        if ((numbytes = recvfrom(sockfd, buf, 99 , 0, (struct sockaddr *)&serv_addr, &addr_len)) == -1) {
+            perror("recvfrom");
+            exit(1);
+        }
 
-	close(sockfd);
+        buf[numbytes] = '\0';
+        printf("listener: packet contains \"%s\"\n", buf);
+    }
+    close(sockfd);
     return TRUE;
 }
 
