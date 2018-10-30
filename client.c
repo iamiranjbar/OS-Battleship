@@ -12,8 +12,8 @@
 #include <time.h> 
 #include <math.h>
 #include <fcntl.h>
+#include <signal.h>
 
-// #define SERVER_PORT 7276
 #define USERNAME_MAX 10
 #define WELCOME_MSG_SIZE 31
 #define IP "127.0.0.1"
@@ -74,16 +74,16 @@ char* get_rival_username(){
 }
 
 void make_server_msg_ready(char* username, int port, char* msg, char* rival_username){
-        char* port_str = (char *)malloc(PORT_LENGTH*sizeof(char));
-        msg = strcat(msg, username);
-        msg = strcat(msg, " ");
-        msg = strcat(msg, IP);
-        msg = strcat(msg," ");
-        port_str = toArray(port);
-        msg = strcat(msg, port_str);
-        msg = strcat(msg, " ");
-        msg = strcat(msg, rival_username);
-        msg = strcat(msg, " ");
+    char* port_str = (char *)malloc(PORT_LENGTH*sizeof(char));
+    msg = strcat(msg, username);
+    msg = strcat(msg, " ");
+    msg = strcat(msg, IP);
+    msg = strcat(msg," ");
+    port_str = toArray(port);
+    msg = strcat(msg, port_str);
+    msg = strcat(msg, " ");
+    msg = strcat(msg, rival_username);
+    msg = strcat(msg, " ");
 }
 
 void parse_request(char* incoming_msg, struct rival* riv){
@@ -129,7 +129,7 @@ int wait_for_rival(int socketfd, struct rival* riv){
     return 1;
 }
 
-int connect_to_server(int* listening_port, struct rival* riv, char* server_ip, int server_port){
+int connect_to_server(int* listening_port, char* server_ip, int server_port){
     int sockfd, numbytes;  
 	struct addrinfo hints, *servinfo, *p;
     struct sockaddr_in servaddr;
@@ -368,7 +368,6 @@ int server_is_up(char *argv[],char* server_ip,int* server_port){
     int sockfd, numbytes, broadcast = 1;
 	struct sockaddr_in addr;
 	char buf[100];
-	socklen_t addr_len;
     struct timeval tout;
 
     tout.tv_sec = 2;
@@ -396,7 +395,6 @@ int server_is_up(char *argv[],char* server_ip,int* server_port){
 
 	printf("listener: waiting to recive hearbeat <3...\n");
 
-	addr_len = sizeof(addr);
     if ((numbytes = recvfrom(sockfd, buf, 99 , 0, NULL, 0)) == -1) {
         close(sockfd);
         return FALSE;
@@ -408,19 +406,13 @@ int server_is_up(char *argv[],char* server_ip,int* server_port){
     return TRUE;
 }
 
-void broadcast_for_rival(char *argv[], int* listening_port){
+void broadcast_for_rival(char *argv[], char* username, int listening_port, char* rival_username){
     clock_t prev, now;
     double cpu_time_used;
     prev = clock();
-    int sockfd, numbytes , broadcast = 1;
+    int sockfd, numbytes , broadcast = 1, one = 1;
     struct sockaddr_in broad_addr;
-    char* msg= (char*)malloc(PAIR_MSG_LENGTH*sizeof(char)); 
-    char *username , *rival_username;
-
-    username = get_username();
-    *listening_port = generate_random_port();
-    rival_username = get_rival_username();
-    printf("%d\n",*listening_port);
+    char* msg= (char*)malloc(PAIR_MSG_LENGTH*sizeof(char));  
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         perror("socket");
@@ -435,7 +427,7 @@ void broadcast_for_rival(char *argv[], int* listening_port){
     broad_addr.sin_port = htons(atoi(argv[4])); 
     broad_addr.sin_addr.s_addr = INADDR_ANY;
 
-    make_server_msg_ready(username, atoi(argv[4]), msg, rival_username);
+    make_server_msg_ready(username, listening_port, msg, rival_username);
     while(TRUE){
         now = clock();
         cpu_time_used = ((double) (now - prev)) / CLOCKS_PER_SEC;
@@ -450,18 +442,134 @@ void broadcast_for_rival(char *argv[], int* listening_port){
     }
 }
 
+void parse_broadcast_msg(char* incoming_msg, struct rival* riv, char* rival_name){
+    int space_count = 0, prev_index;
+    char temp[6];
+    for (int i = 0; i < strlen(incoming_msg); i++){
+        if (incoming_msg[i] == ' '){
+            space_count++;
+            switch(space_count){
+                case 1:
+                    memcpy(riv -> username, incoming_msg, i); 
+                    riv -> username[i] = NULLPTR;
+                    prev_index = i;
+                break;
+                case 2:
+                    memcpy(riv -> ip, incoming_msg+prev_index+1, i - prev_index-1);
+                    riv -> ip[i-prev_index-1] = NULLPTR;
+                    prev_index = i;
+                break;
+                case 3:
+                    memcpy(temp, incoming_msg+prev_index+1, i - prev_index-1);
+                    riv -> port = atoi(temp);
+                    prev_index = i;
+                break;
+            }
+        }
+    }
+    memcpy(rival_name, incoming_msg+prev_index+1, strlen(incoming_msg) - prev_index-2);
+}
+
+int search_for_rival(char* argv[], struct rival* riv, char* username){
+    int sockfd, numbytes, broadcast = 1, one = 1;
+	struct sockaddr_in addr, broad_addr;
+	char buf[100];
+    char rival_name[10] = "\0";
+    char *final_pair_msg = (char*)malloc(sizeof(char)*SERVER_MSG_SIZE);
+    char *pair_msg="You're paired 1 ";
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+        perror("listener: socket");
+        exit(1);
+    }
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(atoi(argv[4])); 
+    addr.sin_addr.s_addr = inet_addr(IP);
+
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) < 0){
+        close(sockfd);
+        exit(1);
+    }
+
+    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        close(sockfd);
+        perror("listener: bind");
+        exit(1);
+    }
+
+	printf("listener: waiting for rival...\n");
+    while(TRUE){
+        if ((numbytes = recvfrom(sockfd, buf, 99 , 0, NULL, 0)) == -1) {
+            close(sockfd);
+            exit(1);
+        }
+        buf[numbytes] = '\0';
+        printf("listener: packet contains \"%s\"\n", buf);
+        parse_broadcast_msg(buf,riv,rival_name);
+        if((rival_name[0] == '\0' || (strcmp(rival_name,username)==0))&&(strcmp(riv -> username,username)!=0)){
+            if ((strcmp(riv->username,"You're") == 0) && (strcmp(riv->ip,"paired") == 0) && (riv->port == 1)){
+                printf("Rival found!\n");
+                close(sockfd);
+                return 0;
+            }else{
+                printf("Rival found!\n");
+                final_pair_msg = strcat(final_pair_msg, pair_msg);
+                final_pair_msg = strcat(final_pair_msg, riv->username);
+                close(sockfd);
+                if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+                    perror("socket");
+                    exit(1);
+                }
+                if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof broadcast) == -1) {
+                    perror("setsockopt (SO_BROADCAST)");
+                    exit(1);
+                }
+
+                broad_addr.sin_family = AF_INET;
+                broad_addr.sin_port = htons(atoi(argv[4])); 
+                broad_addr.sin_addr.s_addr = INADDR_ANY;
+                
+                if ((numbytes=sendto(sockfd, final_pair_msg, strlen(final_pair_msg), 0, (struct sockaddr *)&broad_addr, sizeof(broad_addr))) == -1) {
+                    perror("sendto");
+                    exit(1);
+                }
+                close(sockfd);
+                return 1;
+            }
+        }
+    }
+}
+
 int main(int argc, char *argv[]){
-	int listening_port, sockfd, role, server_port;
+	int listening_port, sockfd, role, server_port, rival_port;
+    pid_t id;
     struct rival riv;
-    char server_ip[10];
+    char server_ip[10],rival_ip;
+    char *username , *rival_username;
     if (server_is_up(argv,server_ip, &server_port)){
-        sockfd = connect_to_server(&listening_port, &riv, server_ip, server_port);
+        sockfd = connect_to_server(&listening_port, server_ip, server_port);
         role = wait_for_rival(sockfd,&riv);
         close(sockfd);
         sockfd = connect_to_rival(role,riv,listening_port);
         start_game(role, sockfd);
+        close(sockfd);
     }else{
-        broadcast_for_rival(argv, &listening_port);
+        username = get_username();
+        listening_port = generate_random_port();
+        rival_username = get_rival_username();
+        printf("%d\n",listening_port);
+        id = fork();
+        if (id == 0){
+            sleep(5);
+            broadcast_for_rival(argv, username, listening_port, rival_username);
+        }
+        else{
+            role = search_for_rival(argv, &riv, username);
+            kill(id, SIGKILL);
+            sockfd = connect_to_rival(role,riv,listening_port);
+            start_game(role, sockfd);
+        }
     }
 	return 0;
 }
